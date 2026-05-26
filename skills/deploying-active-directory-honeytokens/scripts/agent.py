@@ -632,6 +632,7 @@ level: critical""",
 
         # Rule 3: DACL access on honeytoken object
         if accounts:
+            object_name_list = "\n".join(f"            - '{a}'" for a in accounts)
             rules.append({
                 "title": "Honeytoken AD Object Accessed",
                 "id": str(uuid.uuid4()),
@@ -661,7 +662,7 @@ detection:
     selection:
         EventID: 4662
         ObjectName|contains:
-{"\n".join(f"            - '{a}'" for a in accounts)}
+{object_name_list}
     condition: selection
 falsepositives:
     - Legitimate AD administration tools
