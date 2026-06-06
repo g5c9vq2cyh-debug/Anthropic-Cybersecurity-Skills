@@ -1,0 +1,43 @@
+name: Lint skill scripts
+
+on:
+  push:
+    paths:
+      - 'skills/**/*.py'
+      - 'tools/**/*.py'
+      - '.ci/**'
+      - '.github/workflows/lint-scripts.yml'
+  pull_request:
+    paths:
+      - 'skills/**/*.py'
+      - 'tools/**/*.py'
+      - '.ci/**'
+      - '.github/workflows/lint-scripts.yml'
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install ruff
+        run: pip install ruff==0.15.8
+
+      - name: Syntax check all scripts (py_compile, hard fail)
+        run: |
+          err=0
+          while IFS= read -r f; do
+            python3 -m py_compile "$f" || { echo "SYNTAX ERROR: $f"; err=$((err+1)); }
+          done < <(find skills tools -name '*.py')
+          echo "Total syntax errors: $err"
+          test "$err" = 0
+
+      - name: Pyflakes bug-class check (F821, F823, F402, hard fail)
+        run: ruff check --select=F821,F823,F402 --no-cache skills tools
+
+      - name: Ratchet check for F401/F541/F841 against baseline
+        run: python3 .ci/check-ruff-baseline.py
