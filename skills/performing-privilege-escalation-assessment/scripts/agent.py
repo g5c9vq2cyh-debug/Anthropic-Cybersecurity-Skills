@@ -9,6 +9,7 @@ capabilities, and kernel version checks.
 import subprocess
 import shlex
 import json
+import os
 import sys
 from pathlib import Path
 from datetime import datetime

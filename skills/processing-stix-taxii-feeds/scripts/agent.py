@@ -2,6 +2,7 @@
 """STIX/TAXII threat intelligence feed processor using taxii2-client and stix2."""
 
 import json
+import os
 import sys
 
 try:
@@ -203,8 +204,6 @@ def print_report(parsed, iocs):
 
 if __name__ == "__main__":
     taxii_url = sys.argv[1] if len(sys.argv) > 1 else "https://cti.example.com/taxii/"
-    user = os.environ.get("TAXII_USER") if "os" in dir() else None
-    import os
     user = os.environ.get("TAXII_USER")
     password = os.environ.get("TAXII_PASSWORD")
     print(f"Discovering TAXII server: {taxii_url}")
