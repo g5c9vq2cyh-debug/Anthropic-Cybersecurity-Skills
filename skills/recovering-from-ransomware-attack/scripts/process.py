@@ -59,37 +59,37 @@ class RecoveryOrchestrator:
         self.plan.systems.append(system)
 
     def start_restore(self, system_name: str, backup_source: str):
-        for sys in self.plan.systems:
-            if sys.name == system_name:
+        for system in self.plan.systems:
+            if system.name == system_name:
                 # Check dependencies are online
-                for dep in sys.dependencies:
+                for dep in system.dependencies:
                     dep_sys = next((s for s in self.plan.systems if s.name == dep), None)
                     if dep_sys and dep_sys.status != "online":
                         raise ValueError(
                             f"Cannot restore {system_name}: dependency {dep} "
                             f"is {dep_sys.status}, must be 'online'"
                         )
-                sys.status = "restoring"
-                sys.backup_source = backup_source
-                sys.restore_start = datetime.now().isoformat()
+                system.status = "restoring"
+                system.backup_source = backup_source
+                system.restore_start = datetime.now().isoformat()
                 return
         raise ValueError(f"System not found: {system_name}")
 
     def complete_restore(self, system_name: str):
-        for sys in self.plan.systems:
-            if sys.name == system_name:
-                sys.status = "validating"
-                sys.restore_end = datetime.now().isoformat()
+        for system in self.plan.systems:
+            if system.name == system_name:
+                system.status = "validating"
+                system.restore_end = datetime.now().isoformat()
                 return
         raise ValueError(f"System not found: {system_name}")
 
     def validate_system(self, system_name: str, checks: dict):
         """Record validation check results for a restored system."""
-        for sys in self.plan.systems:
-            if sys.name == system_name:
-                sys.validation_checks = checks
+        for system in self.plan.systems:
+            if system.name == system_name:
+                system.validation_checks = checks
                 all_passed = all(checks.values())
-                sys.status = "online" if all_passed else "failed"
+                system.status = "online" if all_passed else "failed"
                 return all_passed
         raise ValueError(f"System not found: {system_name}")
 
@@ -98,17 +98,17 @@ class RecoveryOrchestrator:
         violations = []
         recovery_start = datetime.fromisoformat(self.plan.recovery_start)
 
-        for sys in self.plan.systems:
-            rto_deadline = recovery_start + timedelta(hours=sys.rto_hours)
+        for system in self.plan.systems:
+            rto_deadline = recovery_start + timedelta(hours=system.rto_hours)
 
-            if sys.status in ("pending", "restoring", "validating"):
+            if system.status in ("pending", "restoring", "validating"):
                 if datetime.now() > rto_deadline:
                     violations.append({
-                        "system": sys.name,
-                        "tier": sys.tier,
-                        "rto_hours": sys.rto_hours,
+                        "system": system.name,
+                        "tier": system.tier,
+                        "rto_hours": system.rto_hours,
                         "deadline": rto_deadline.isoformat(),
-                        "status": sys.status,
+                        "status": system.status,
                         "exceeded_by_hours": round(
                             (datetime.now() - rto_deadline).total_seconds() / 3600, 1
                         ),
@@ -123,13 +123,13 @@ class RecoveryOrchestrator:
 
         by_status = {}
         by_tier = {}
-        for sys in self.plan.systems:
-            by_status[sys.status] = by_status.get(sys.status, 0) + 1
-            tier_key = f"tier_{sys.tier}"
+        for system in self.plan.systems:
+            by_status[system.status] = by_status.get(system.status, 0) + 1
+            tier_key = f"tier_{system.tier}"
             if tier_key not in by_tier:
                 by_tier[tier_key] = {"total": 0, "online": 0}
             by_tier[tier_key]["total"] += 1
-            if sys.status == "online":
+            if system.status == "online":
                 by_tier[tier_key]["online"] += 1
 
         online = by_status.get("online", 0)
@@ -143,16 +143,16 @@ class RecoveryOrchestrator:
     def get_next_recoverable(self) -> list:
         """Get list of systems ready for recovery (dependencies met)."""
         ready = []
-        for sys in self.plan.systems:
-            if sys.status != "pending":
+        for system in self.plan.systems:
+            if system.status != "pending":
                 continue
             deps_met = all(
                 next((s for s in self.plan.systems if s.name == dep), None) is not None
                 and next((s for s in self.plan.systems if s.name == dep)).status == "online"
-                for dep in sys.dependencies
+                for dep in system.dependencies
             )
-            if deps_met or not sys.dependencies:
-                ready.append(sys)
+            if deps_met or not system.dependencies:
+                ready.append(system)
         return sorted(ready, key=lambda s: s.tier)
 
     def generate_report(self) -> str:
@@ -190,17 +190,17 @@ class RecoveryOrchestrator:
         for tier in sorted(set(s.tier for s in self.plan.systems)):
             tier_systems = [s for s in self.plan.systems if s.tier == tier]
             lines.append(f"\n  Tier {tier}:")
-            for sys in tier_systems:
+            for system in tier_systems:
                 status_icon = {"pending": "[ ]", "restoring": "[~]", "validating": "[?]",
-                              "online": "[+]", "failed": "[X]"}.get(sys.status, "[?]")
-                lines.append(f"    {status_icon} {sys.name} ({sys.system_type}) - {sys.status}")
-                if sys.restore_start and sys.restore_end:
-                    start = datetime.fromisoformat(sys.restore_start)
-                    end = datetime.fromisoformat(sys.restore_end)
+                              "online": "[+]", "failed": "[X]"}.get(system.status, "[?]")
+                lines.append(f"    {status_icon} {system.name} ({system.system_type}) - {system.status}")
+                if system.restore_start and system.restore_end:
+                    start = datetime.fromisoformat(system.restore_start)
+                    end = datetime.fromisoformat(system.restore_end)
                     duration = (end - start).total_seconds() / 3600
                     lines.append(f"        Restore time: {duration:.1f} hours")
-                if sys.validation_checks:
-                    for check, passed in sys.validation_checks.items():
+                if system.validation_checks:
+                    for check, passed in system.validation_checks.items():
                         result = "PASS" if passed else "FAIL"
                         lines.append(f"        {check}: {result}")
 
@@ -208,8 +208,8 @@ class RecoveryOrchestrator:
         ready = self.get_next_recoverable()
         if ready:
             lines.append(f"\nReady for Recovery ({len(ready)}):")
-            for sys in ready:
-                lines.append(f"  - {sys.name} (Tier {sys.tier}, {sys.system_type})")
+            for system in ready:
+                lines.append(f"  - {system.name} (Tier {system.tier}, {system.system_type})")
 
         lines.append("\n" + "=" * 70)
         return "\n".join(lines)

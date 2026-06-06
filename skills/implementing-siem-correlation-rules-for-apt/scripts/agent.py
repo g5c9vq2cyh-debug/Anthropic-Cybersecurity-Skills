@@ -238,7 +238,6 @@ def main():
             logger.info("Rule '%s': %d hits", rule["name"], len(hits))
 
     if args.sigma_export:
-        import os
         os.makedirs(args.sigma_export, exist_ok=True)
         for rule in LATERAL_MOVEMENT_RULES:
             sigma_yaml = generate_sigma_rule(rule)
